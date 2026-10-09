@@ -51,7 +51,7 @@ echo ">>> [Step 3/4] Running SMOTE 3x + Random Forest Classification & Master Di
 
 # Step 4: Run Latent Space Diagnostics & Spectral Visualizations
 echo ""
-echo ">>> [Step 4/4] Generating Latent Space and Spectral Diagnostics..."
+echo ">>> [Step 4/5] Generating Latent Space and Spectral Diagnostics..."
 echo "  - Running 128D Cosine Similarity & Remaining Missed QSOs Analysis..."
 "$PYTHON_EXEC" visualize_remaining_missed_qsos_latent.py
 
@@ -61,8 +61,13 @@ echo "  - Plotting Individual Representative Spectra of Missed QSOs..."
 echo "  - Mapping Individual Spectra onto Latent Space & PCA/t-SNE Manifolds..."
 "$PYTHON_EXEC" plot_individual_missed_qsos_latent_positions.py
 
+# Step 5: Generate Final Full Survey Predictions Catalog (216,476 targets)
+echo ""
+echo ">>> [Step 5/5] Generating Final Full Survey Predictions Catalog (CSV, Gzip, SQLite3)..."
+"$PYTHON_EXEC" create_216k_full_survey_predictions_catalog.py
+
 echo ""
 echo "========================================================================"
 echo "Pipeline execution finished successfully!"
-echo "All model checkpoints, embeddings, and diagnostic plots are saved in results/"
+echo "Final catalog and diagnostic plots are saved in results/"
 echo "========================================================================"

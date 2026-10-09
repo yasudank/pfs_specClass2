@@ -80,3 +80,15 @@ models/clustering.py
 models/hybrid_ssl.py
 models/restframe_model.py
 models/weighted_pca.py
+
+# Archived test & benchmark scripts (kept locally)
+add_composite_primary_keys_to_catalogs.py
+compare_star_velocities_with_db.py
+evaluate_qso_approach_b_hybrid.py
+evaluate_star_radial_velocity.py
+rebuild_pfs_classifications_216k.py
+run_full_survey_classification_and_redshift.py
+test_approach_a_redshift_estimator.py
+test_qso_approach_b_hybrid.py
+test_shift_aligned_star_template.py
+
