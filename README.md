@@ -105,9 +105,7 @@ pfs_specClass2/
 ├── augmentations.py                                   # 2チャネル対照学習用スペクトルデータ拡張
 │
 ├── models/
-│   ├── contrastive_model.py                           # 2-Channel 1D CNN SimCLR & NTXentLoss
-│   ├── restframe_model.py                             # 静止系アライメントモデル
-│   └── autoencoder.py                                 # 比較用オートエンコーダ
+│   └── contrastive_model.py                           # 2-Channel 1D CNN SimCLR & NTXentLoss
 │
 ├── step1_prepare_full_augmented_dataset.py            # [Step 1] 生FITSデータからデータセット構築
 ├── train_2channel_boosted_simclr.py                   # [Step 2] α=3.0 ブースト SimCLR 学習 & 128D 抽出
