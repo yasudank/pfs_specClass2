@@ -21,33 +21,36 @@ PFS サーベイにおける天体分類（GALAXY / STAR / QSO）では、**QSO�
 
 ## 2. アルゴリズムとパイプライン設計
 
-パイプラインは以下の 4 ステップから構成されます。
+パイプラインは以下の 5 ステップから構成されます。
 
 ```
 [Raw PFS FITS Spectra (370-1260nm)]
                │
                ▼
-[Step 1: 前処理 & 2チャネル分解]
+[Step 1: 前処理 & 2チャネル分解 (step1_prepare_full_augmented_dataset.py)]
    Channel 0: 観測連続光 F(λ)
    Channel 1: 局所輝線残差 3.0 × R(λ)  [α=3.0 ブースト]
                │
                ▼
-[Step 2: 自己教師あり 2-Channel SimCLR 学習 (GPU: RTX 4090)]
-   - 1D ResNet / ConvNet エンコーダ
-   - 天文学的スペクトル拡張 (マスキング, 連続光傾斜, ノイズ)
-   - NT-Xent (InfoNCE) 対照損失 (τ=0.10)
+[Step 2: 自己教師あり 2-Channel SimCLR 学習 (train_2channel_boosted_simclr.py)]
+   - 1D ResNet エンコーダ & 天文学的スペクトル拡張 (マスキング, 連続光傾斜, ノイズ)
+   - 128次元潜在表現抽出 (z ∈ R^128)
                │
                ▼
-[Step 3: 128次元 潜在表現抽出 (Survey-wide Embeddings)]
-   - 各天体の 128D ベクトル表現 z ∈ R^128 を抽出
+[Step 3: Stage 1 天体種別分類 (run_experiment3_full_analysis.py)]
+   - 少数派 QSO の 128D 潜在空間 SMOTE (3x) 水増し
+   - Random Forest 5-Fold Stratified CV (STAR, GALAXY, QSO 各確率出力)
                │
                ▼
-[Step 4: 潜在空間 SMOTE (3x) + Random Forest 分類]
-   - 少数派 QSO の 128D 表現を k-NN 補間 (SMOTE 3倍)
-   - 5-Fold Stratified Cross-Validation (balanced_subsample)
+[Step 4: Stage 2 赤方偏移推定 (step4_train_and_estimate_redshifts.py)]
+   - 銀河: 1D Deep Spectral ResNet (z ∈ [0.0, 2.5] 連続分布期待値回帰)
+   - QSO: Two-Stage Hybrid (1D ResNet 粗推定 + 合成テンプレート CCF 精密探索)
+   - 恒星: 静止系基準 z = 0.0000
                │
                ▼
-[最終出力: 予測クラス (OOF), 信頼度確率, 潜在診断図, スタックスペクトル]
+[Step 5: 最終カタログ生成 (create_216k_full_survey_predictions_catalog.py)]
+   - 全 216,476 スペクトルの一意な複合主キー (catId, objId, combination) 付与
+   - SQLite DB (pfs_full_survey_predictions.sqlite3) & 圧縮 CSV 出力
 ```
 
 ### 2.1 2チャネル分解と輝線振幅ブースト ($\alpha = 3.0$)
@@ -107,21 +110,24 @@ pfs_specClass2/
 ├── models/
 │   └── contrastive_model.py                           # 2-Channel 1D CNN SimCLR & NTXentLoss
 │
-├── step1_prepare_full_augmented_dataset.py            # [Step 1] 生FITSデータからデータセット構築
+├── step1_prepare_full_augmented_dataset.py            # [Step 1] 生FITSデータから代表データセット構築
 ├── train_2channel_boosted_simclr.py                   # [Step 2] α=3.0 ブースト SimCLR 学習 & 128D 抽出
-├── run_experiment3_full_analysis.py                   # [Step 3] SMOTE 3x RF 5-Fold CV & 診断図作成
-│
-├── visualize_remaining_missed_qsos_latent.py          # [Step 4-A] 残余見逃しQSOの潜在空間位置解析
-├── plot_remaining_missed_qso_spectra.py               # [Step 4-B] 残余見逃しQSOの個別スペクトル描画
-├── plot_individual_missed_qsos_latent_positions.py    # [Step 4-C] 個別天体の潜在空間プロット
-│
+├── run_experiment3_full_analysis.py                   # [Step 3] Stage 1: SMOTE 3x RF 5-Fold 分類
+├── step4_train_and_estimate_redshifts.py              # [Step 4] Stage 2: 銀河 ResNet & QSO Hybrid Redshift 学習・推論
 ├── create_216k_full_survey_predictions_catalog.py     # [Step 5] 全216k天体 最終予測カタログ作成 (CSV, SQLite)
+│
+├── visualize_remaining_missed_qsos_latent.py          # [Diag-A] 残余見逃しQSOの潜在空間位置解析
+├── plot_remaining_missed_qso_spectra.py               # [Diag-B] 残余見逃しQSOの個別スペクトル描画
+├── plot_individual_missed_qsos_latent_positions.py    # [Diag-C] 個別天体の潜在空間プロット
 │
 └── results/                                           # 出力成果物ディレクトリ
     ├── pfs_full_survey_predictions.sqlite3            # 【最終カタログ】全216,476天体 予測DB (主キー付)
     ├── pfs_full_survey_predictions.csv.gz             # 【最終カタログ】全216,476天体 予測CSV (gzip)
     ├── pfs_full_survey_predictions.csv                # 【最終カタログ】全216,476天体 予測CSV
     ├── spectral_simclr_2channel_boost3x.pt            # 学習済み SimCLR 重みファイル
+    ├── galaxy_redshift_resnet.pt                      # 学習済み 銀河 Redshift ResNet 重み
+    ├── qso_redshift_resnet.pt                         # 学習済み QSO Redshift ResNet 重み
+    ├── redshift_predictions_scratch.npz               # 代表データセット Redshift 推定キャッシュ
     ├── embeddings_representative_boost3x.npy          # 128次元 潜在表現ベクトル (N=40,544)
     ├── rf_oof_boost3x_smote_representative.npz        # RF 予測ラベル・予測確率・真値
     ├── latent_distribution_boost3x_smote.png          # 潜在空間 t-SNE 分布図 (4パネル)
@@ -198,8 +204,8 @@ python train_2channel_boosted_simclr.py
   - `results/spectral_simclr_2channel_boost3x.pt`（学習済みモデル）
   - `results/embeddings_representative_boost3x.npy`（128D ベクトル）
 
-#### 【Step 3】潜在空間 SMOTE 3x 水増し ＋ Random Forest 5分割交差検証
-抽出された潜在特徴量に対して SMOTE 3倍水増しを適用し、ランダムフォレストの 5-Fold CV を実行します：
+#### 【Step 3】潜在空間 SMOTE 3x 水増し ＋ Random Forest 5分割交差検証（Stage 1 天体分類）
+抽出された潜在特徴量に対して SMOTE 3倍水増しを適用し、ランダムフォレストの 5-Fold CV を実行して全天体の分類確率（`prob_galaxy`, `prob_star`, `prob_qso`）を算出します：
 ```bash
 python run_experiment3_full_analysis.py
 ```
@@ -208,8 +214,28 @@ python run_experiment3_full_analysis.py
   - `results/latent_distribution_boost3x_smote.png`（潜在空間分布図）
   - `results/rf_disagreement_restframe_spectra_boost3x.png`（静止系スタックスペクトル）
 
-#### 【Step 4】潜在パラメータ位置と個別スペクトルの詳細診断
-見逃された天体（Remaining Missed QSOs $\to$ GALAXY）の振る舞いを物理的・幾何学的に検証するスクリプト群です：
+#### 【Step 4】銀河 ResNet ＆ QSO Hybrid Redshift モデルの学習と推定（Stage 2 赤方偏移推定）
+Step 3 の分類結果からモデルと DB ラベルが一致した高信頼度サンプル（Agreed Galaxies / Agreed QSOs）を抽出し、銀河用・クエーサー用の分光赤方偏移推定モデルを学習して全天体の Redshift を推論します：
+```bash
+python step4_train_and_estimate_redshifts.py
+```
+* **出力**:
+  - `results/galaxy_redshift_resnet.pt`（学習済み 銀河 1D ResNet 重み）
+  - `results/qso_redshift_resnet.pt`（学習済み QSO 1D ResNet 重み）
+  - `results/redshift_predictions_scratch.npz`（推論キャッシュ）
+
+#### 【Step 5】全 216k 天体の最終予測カタログ生成
+Stage 1 のモデル予測結果（天体種別・信頼度確率）と Stage 2 の Redshift 推定値を統合し、サーベイ全天体の一意な複合主キー `(catId, objId, combination)` を持つ最終カタログを出力します：
+```bash
+python create_216k_full_survey_predictions_catalog.py
+```
+* **出力**:
+  - `results/pfs_full_survey_predictions.sqlite3`（SQLite データベース）
+  - `results/pfs_full_survey_predictions.csv.gz`（圧縮 CSV カタログ）
+  - `results/pfs_full_survey_predictions.csv`（非圧縮 CSV カタログ）
+
+#### 【診断】潜在パラメータ位置と個別スペクトルの詳細診断
+見逃された天体（Remaining Missed QSOs $\to$ GALAXY）の振る舞いを物理的・幾何学的に検証する診断スクリプト群です：
 ```bash
 # 1. 128D コサイン類似度・決定境界・類似度マージン分布の解析
 python visualize_remaining_missed_qsos_latent.py
@@ -225,28 +251,18 @@ python plot_individual_missed_qsos_latent_positions.py
   - `results/remaining_missed_qso_sample_spectra.png`
   - `results/individual_missed_qsos_latent_positions.png`
 
-#### 【Step 5】全 216k 天体の最終予測カタログ生成
-モデルの予測結果（天体種別・信頼度確率）と赤方偏移推定値を統合し、サーベイ全天体の一意な複合主キー `(catId, objId, combination)` を持つ最終カタログを出力します：
-```bash
-python create_216k_full_survey_predictions_catalog.py
-```
-* **出力**:
-  - `results/pfs_full_survey_predictions.sqlite3`（SQLite データベース）
-  - `results/pfs_full_survey_predictions.csv.gz`（圧縮 CSV カタログ）
-  - `results/pfs_full_survey_predictions.csv`（非圧縮 CSV カタログ）
-
 ---
 
 ## 6. 赤方偏移（Redshift）および視線速度の推定・物理検証
 
-本パイプラインでは、天体種別分類（Stage 1: GALAXY / STAR / QSO）に続き、各種別に最適化された赤方偏移・運動学パラメーター推定（Stage 2）を実施します（※これらの推定手法はベンチマーク検証を経て `create_216k_full_survey_predictions_catalog.py` に統合されています）。
+本パイプラインでは、天体種別分類（Stage 1: GALAXY / STAR / QSO）に続き、各種別に最適化された赤方偏移・運動学パラメーター推定（Stage 2: [`step4_train_and_estimate_redshifts.py`](file:///mnt/ugnas/work/PFS/pfs_specClass2/step4_train_and_estimate_redshifts.py)）を実施します。
 
 ### 6.1 銀河（GALAXY）の赤方偏移推定: 1D Deep ResNet
 * **手法**: 観測スペクトル（4096次元）を直接入力とする 1D Deep Residual Network（Conv1d + Residual Blocks + Fully Connected 回帰層）により、連続光と主要な吸収線・輝線（[O II], Hβ, [O III], Hα など）の大域的パターンから赤方偏移 $z$ を直接予測。
 * **精度評価（テストセット）**:
-  - Normalized Median Absolute Deviation ($\sigma_{\mathrm{NMAD}}$): **0.0136**
-  - バイアス（Median Error）: **+0.0014**
-  - 破局的誤差率（$|\Delta z| / (1+z) > 0.05$）: **12.7%**
+  - Normalized Median Absolute Deviation ($\sigma_{\mathrm{NMAD}}$): **0.0116** 〜 **0.0136**
+  - バイアス（Median Error）: **+0.0009**
+  - 破局的誤差率（$|\Delta z| / (1+z) > 0.05$）: **12.7%** 〜 **19.5%**
 
 ### 6.2 クエーサー（QSO）の赤方偏移推定: Two-Stage Hybrid
 クエーサーは広い赤方偏移範囲（$z \sim 0.1 - 4.5$）に分布し、Lyα, C IV, C III], Mg II などの広輝線の非対称性やピークシフトが生じます。これに対応するため、深層学習と高精度物理テンプレート相互相関（Cross-Correlation Function; CCF）を組み合わせたハイブリッド手法を採用しました。

@@ -85,18 +85,23 @@ def main():
             "pred_conf": float(np.max(probs_40k[i]))
         }
 
-    # Load high-precision ResNet/Hybrid candidate redshifts
-    csv_prev = RESULTS_DIR / "pfs_full_survey_predictions.csv"
-    map_redshifts = {}
-    if csv_prev.exists():
-        df_prev = pd.read_csv(csv_prev)
-        for _, row in df_prev.iterrows():
-            key = (int(row['catId']), int(row['objId']), str(row['combination']))
-            map_redshifts[key] = {
-                'z_gal': float(row['z_galaxy_candidate']),
-                'z_qso': float(row['z_qso_candidate']),
-                'z_qual': float(row['redshift_quality'])
+    # Load high-precision ResNet/Hybrid candidate redshifts from Step 4
+    npz_redshifts = RESULTS_DIR / "redshift_predictions_scratch.npz"
+    map_redshifts_by_obj = {}
+    if npz_redshifts.exists():
+        print(f"Loading high-precision redshifts from Step 4 cache: {npz_redshifts} ...")
+        r_npz = np.load(npz_redshifts)
+        r_oids = r_npz['objIds']
+        r_zgal = r_npz['z_galaxy_candidate']
+        r_zqso = r_npz['z_qso_candidate']
+        r_qual = r_npz['redshift_quality']
+        for idx_r, roid in enumerate(r_oids):
+            map_redshifts_by_obj[int(roid)] = {
+                'z_gal': float(r_zgal[idx_r]),
+                'z_qso': float(r_zqso[idx_r]),
+                'z_qual': float(r_qual[idx_r])
             }
+        print(f"Loaded high-precision redshifts for N = {len(map_redshifts_by_obj):,} representative targets.")
 
     # 3. Load 216k Survey Baseline
     meta_path = RESULTS_DIR / "survey_meta_216k_final.npz"
@@ -174,12 +179,13 @@ def main():
         qz = float(best_qso_z[i])
         qr = float(best_qso_r[i])
 
-        if tuple_key in map_redshifts:
-            r_rec = map_redshifts[tuple_key]
+        if int(oid) in map_redshifts_by_obj:
+            r_rec = map_redshifts_by_obj[int(oid)]
             if r_rec['z_gal'] > 0:
                 gz = r_rec['z_gal']
             if r_rec['z_qso'] > 0:
                 qz = r_rec['z_qso']
+                qr = r_rec['z_qual']
 
         final_z_gal.append(gz)
         final_z_qso.append(qz)

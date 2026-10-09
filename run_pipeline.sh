@@ -41,17 +41,27 @@ fi
 
 # Step 2: Train 2-Channel Boosted SimCLR (alpha=3.0) & Extract 128D Embeddings
 echo ""
-echo ">>> [Step 2/4] Training Boosted 2-Channel SimCLR (alpha=3.0) & Extracting 128D Embeddings..."
+echo ">>> [Step 2/6] Training Boosted 2-Channel SimCLR (alpha=3.0) & Extracting 128D Embeddings..."
 "$PYTHON_EXEC" train_2channel_boosted_simclr.py
 
-# Step 3: Run SMOTE 3x Random Forest 5-Fold Cross-Validation & Master Analysis
+# Step 3: Stage 1 Classification: SMOTE 3x Random Forest 5-Fold Cross-Validation
 echo ""
-echo ">>> [Step 3/4] Running SMOTE 3x + Random Forest Classification & Master Diagnostic Maps..."
+echo ">>> [Step 3/6] Running Stage 1 Classification (SMOTE 3x + Random Forest 5-Fold CV)..."
 "$PYTHON_EXEC" run_experiment3_full_analysis.py
 
-# Step 4: Run Latent Space Diagnostics & Spectral Visualizations
+# Step 4: Stage 2 Redshift Estimation: Train Galaxy ResNet & QSO Hybrid CCF Models
 echo ""
-echo ">>> [Step 4/5] Generating Latent Space and Spectral Diagnostics..."
+echo ">>> [Step 4/6] Training Stage 2 Redshift Models (Galaxy ResNet & QSO Hybrid CCF) & Inferring Redshifts..."
+"$PYTHON_EXEC" step4_train_and_estimate_redshifts.py
+
+# Step 5: Generate Final Full Survey Predictions Catalog (216,476 targets)
+echo ""
+echo ">>> [Step 5/6] Generating Final Full Survey Predictions Catalog (CSV, Gzip, SQLite3)..."
+"$PYTHON_EXEC" create_216k_full_survey_predictions_catalog.py
+
+# Step 6: Run Latent Space Diagnostics & Spectral Visualizations
+echo ""
+echo ">>> [Step 6/6] Generating Latent Space and Spectral Diagnostics..."
 echo "  - Running 128D Cosine Similarity & Remaining Missed QSOs Analysis..."
 "$PYTHON_EXEC" visualize_remaining_missed_qsos_latent.py
 
@@ -61,13 +71,8 @@ echo "  - Plotting Individual Representative Spectra of Missed QSOs..."
 echo "  - Mapping Individual Spectra onto Latent Space & PCA/t-SNE Manifolds..."
 "$PYTHON_EXEC" plot_individual_missed_qsos_latent_positions.py
 
-# Step 5: Generate Final Full Survey Predictions Catalog (216,476 targets)
-echo ""
-echo ">>> [Step 5/5] Generating Final Full Survey Predictions Catalog (CSV, Gzip, SQLite3)..."
-"$PYTHON_EXEC" create_216k_full_survey_predictions_catalog.py
-
 echo ""
 echo "========================================================================"
 echo "Pipeline execution finished successfully!"
-echo "Final catalog and diagnostic plots are saved in results/"
+echo "Final catalog, model checkpoints, and diagnostic plots are saved in results/"
 echo "========================================================================"
