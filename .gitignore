@@ -1,0 +1,34 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Caches and logs
+*.log
+.pytest_cache/
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# Large binary datasets, databases, and model checkpoints
+*.sqlite3
+*.npz
+*.npy
+*.pt
+*.joblib
+*.fits
+*.csv
+
+# Results directory: ignore generated binaries, caches, and intermediate files
+results/*
+!results/.gitkeep
+!results/latent_distribution_boost3x_smote.png
+!results/rf_disagreement_restframe_spectra_boost3x.png
+!results/remaining_missed_qsos_latent_positions.png
+!results/remaining_missed_qso_sample_spectra.png
+!results/individual_missed_qsos_latent_positions.png
+
+# Virtual environments
+.venv/
+env/
+venv/
